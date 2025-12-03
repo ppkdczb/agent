@@ -2,9 +2,10 @@ import os
 import re
 from typing import Dict, List, Tuple
 from dataclasses import dataclass
+from numpy import extract
 from pydantic import BaseModel, Field
-from utils import retrieve_faiss, parse_directory_structure
-
+from utils import retrieve_faiss, parse_directory_structure,parse_json_content
+import json
 
 class CaseSummaryModel(BaseModel):
     case_name: str = Field(description="name of the case")
@@ -80,6 +81,7 @@ def retrieve_references(case_name: str, case_solver: str, case_domain: str, case
 
 def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_str: str, llm) -> List[Dict]:
     decompose_system_prompt = (
+        "/no_think"
         "You are an experienced Planner specializing in OpenFOAM projects. "
         "Your task is to break down the following user requirement into a series of smaller, manageable subtasks. "
         "For each subtask, identify the file name of the OpenFOAM input file (foamfile) and the corresponding folder name where it should be stored. "
@@ -97,8 +99,11 @@ def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_
         "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
         "Please generate the output as structured JSON."
     )
-
-    res = llm.invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanModel)
-    return [{"file_name": s.file_name, "folder_name": s.folder_name} for s in res.subtasks]
+    #res = llm.invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanModel, is_thinking=False)
+    res = llm.invoke(decompose_user_prompt, decompose_system_prompt)
+    json_str = parse_json_content(res)
+    res = json.loads(json_str)
+    print(res)
+    return [{"file_name": s["file_name"], "folder_name": s["folder_name"]} for s in res["subtasks"]]
 
 

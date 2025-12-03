@@ -1,9 +1,10 @@
 import os
 from typing import Dict, List
-from utils import save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic
+from utils import save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic, parse_json_content
 from services.files import generate_file_content
 import re
-
+import json
+from types import SimpleNamespace # 引入这个库
 
 def compute_priority(subtask):
     if subtask["folder_name"] == "system":
@@ -62,7 +63,8 @@ def build_allrun(llm, case_dir: str, config, dir_structure: Dict, case_info: str
         "Generate only the required OpenFOAM command list—no extra text."
     )
     command_response = llm.invoke(command_user_prompt, command_system_prompt)
-
+    command_response = parse_context(str(command_response))
+    #print(f"Generated Allrun commands: {command_response}")
     allrun_system_prompt = (
         "You are an expert in OpenFOAM. Generate an Allrun script based on the provided details."
         f"Available commands with descriptions: {commands}\n\n"
@@ -80,6 +82,7 @@ def build_allrun(llm, case_dir: str, config, dir_structure: Dict, case_info: str
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
     allrun_response = llm.invoke(allrun_user_prompt, allrun_system_prompt)
+    allrun_response = parse_context(str(allrun_response))
     match = re.search(r'```(.*?)```', allrun_response, re.DOTALL)
     script = match.group(1).strip() if match else allrun_response
     allrun_file_path = os.path.join(case_dir, "Allrun")
@@ -103,8 +106,8 @@ def rewrite_files(llm, case_dir: str, foamfiles, error_logs, review_analysis, us
         "Please do not propose solutions that require modifying any parameters declared in the user requirement, try other approaches instead."
         "The user will provide the error content, error command, reviewer's suggestions, and all relevant foam files. "
         "Only return files that require rewriting, modification, or addition; do not include files that remain unchanged. "
-        "Return the complete, corrected file contents in the following JSON format: "
-        "list of foamfile: [{file_name: 'file_name', folder_name: 'folder_name', content: 'content'}]. "
+        "Return the complete, corrected file contents in the following JSON format which will be loaded as a list: "
+        "```[{file_name: 'file_name', folder_name: 'folder_name', content: 'content'}]. ```"
         "Ensure your response includes only the modified file content with no extra text, as it will be parsed using Pydantic."
     )
 
@@ -116,7 +119,16 @@ def rewrite_files(llm, case_dir: str, foamfiles, error_logs, review_analysis, us
         "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
     )
 
-    response = llm.invoke(rewrite_user_prompt, rewrite_system_prompt, pydantic_obj=FoamPydantic)
+    response = llm.invoke(rewrite_user_prompt, rewrite_system_prompt)
+    #response = llm.invoke(rewrite_user_prompt, rewrite_system_prompt)
+    data = json.loads(parse_json_content(response))
+    print(data)
+    list_foamfile = []
+    for foamfile in data:
+        foamfile_obj = FoamfilePydantic(**foamfile)
+        list_foamfile.append(foamfile_obj)
+    response = FoamPydantic(list_foamfile=list_foamfile)
+        
 
     # Prepare updated structures
     updated_dir = dict(dir_structure) if dir_structure else {}

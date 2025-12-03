@@ -13,6 +13,7 @@ from langchain_anthropic import ChatAnthropic
 from pathlib import Path
 
 from sklearn import base
+import config
 import tracking_aws
 import requests
 import time
@@ -66,7 +67,8 @@ class LLMService:
         self.total_tokens = 0
         self.failed_calls = 0
         self.retry_count = 0
-        
+        self.thinking = getattr(config, "thinking", False)
+
         # Initialize the LLM
         if self.model_provider.lower() == "bedrock":
             bedrock_runtime = tracking_aws.new_default_client()
@@ -113,7 +115,7 @@ class LLMService:
               user_prompt: str, 
               system_prompt: Optional[str] = None, 
               pydantic_obj: Optional[Type[BaseModel]] = None,
-              max_retries: int = 10) -> Any:
+              max_retries: int = 10, is_thinking: bool = None) -> Any:
         """
         Invoke the LLM with the given prompts and return the response.
         
@@ -127,7 +129,6 @@ class LLMService:
             The LLM response with token usage statistics
         """
         self.total_calls += 1
-        
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -143,7 +144,7 @@ class LLMService:
             try:
                 if pydantic_obj:
                     structured_llm = self.llm.with_structured_output(pydantic_obj)
-                    response = structured_llm.invoke(messages, extra_body={"enable_thinking": False})
+                    response = structured_llm.invoke(messages)
                 else:
                     if self.model_version.startswith("deepseek"):
                         structured_llm = self.llm.with_structured_output(ResponseWithThinkPydantic)
@@ -152,7 +153,7 @@ class LLMService:
                         # Extract the resposne without the think
                         response = response.response
                     else:
-                        response = self.llm.invoke(messages, extra_body={"enable_thinking": False})
+                        response = self.llm.invoke(messages)
                         response = response.content
 
                 # Calculate completion tokens
@@ -412,7 +413,16 @@ def split_subtasks(text: str) -> list:
         print(f"Warning: Expected {num_subtasks} subtasks but found {len(subtasks)}.")
     return subtasks
 
+# 截取 </think> 之后的内容
+def remove_think_tags(text: str) -> str:
+    think_end_idx = str(text).find("</think>")
+    if think_end_idx != -1:
+        text = text[think_end_idx + len("</think>") :]
+        print("已去除 </think> 及之前的内容")
+    return text
+
 def parse_context(text: str) -> str:
+    text = remove_think_tags(text)
     match = re.search(r'FoamFile\s*\{.*?(?=```|$)', text, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(0).strip()
@@ -422,10 +432,17 @@ def parse_context(text: str) -> str:
 
 
 def parse_file_name(subtask: str) -> str:
+    subtask = remove_think_tags(subtask)    
     match = re.search(r'openfoam\s+(.*?)\s+foamfile', subtask, re.IGNORECASE)
     return match.group(1).strip() if match else ""
 
+def parse_json_content(subtask: str, ) -> str:
+    subtask_nothink = remove_think_tags(subtask)    
+    match = re.search(r'```(?:json)?\s*(.*?)\s*```', subtask_nothink, re.DOTALL)
+    return match.group(1).strip() if match else subtask_nothink
+
 def parse_folder_name(subtask: str) -> str:
+    subtask = remove_think_tags(subtask)    
     match = re.search(r'foamfile in\s+(.*?)\s+folder', subtask, re.IGNORECASE)
     return match.group(1).strip() if match else ""
 

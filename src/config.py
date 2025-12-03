@@ -16,7 +16,9 @@ class Config:
     file_dependency_threshold: int = 3000 # threshold length on the similar case; see `nodes/architect_node.py` for details
     model_provider: str = "openai"# [openai, ollama, bedrock]
     # model_version should be in ["gpt-4o", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
-    model_version: str = "qwen3-32b"
-    temperature: float = 1
+    model_version: str = "deepseek-chat"
+    temperature: float = 0.8
+    thinking: bool = False
+    
     
 ##claude-haiku-4-5-20251001
