@@ -2,8 +2,8 @@
 *.pkl
 *.txt
 runs/
-database/faiss
-database/raw
+# database/faiss
+# database/raw
 output/
 benchmark/
 database/foamgpt/data
@@ -179,3 +179,5 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+AGENTS.md
