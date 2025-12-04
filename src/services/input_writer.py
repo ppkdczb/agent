@@ -122,7 +122,7 @@ def rewrite_files(llm, case_dir: str, foamfiles, error_logs, review_analysis, us
     response = llm.invoke(rewrite_user_prompt, rewrite_system_prompt)
     #response = llm.invoke(rewrite_user_prompt, rewrite_system_prompt)
     data = json.loads(parse_json_content(response))
-    print(data)
+    #print(data)
     list_foamfile = []
     for foamfile in data:
         foamfile_obj = FoamfilePydantic(**foamfile)

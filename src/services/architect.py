@@ -22,6 +22,9 @@ class SubtaskModel(BaseModel):
 class OpenFOAMPlanModel(BaseModel):
     subtasks: List[SubtaskModel]
 
+class CaseIndexModel(BaseModel):
+    selected_index: int
+    reason: str
 
 def parse_requirement_to_case_info(user_requirement: str, case_stats: Dict, llm) -> Dict:
     parse_system_prompt = (
@@ -52,13 +55,62 @@ def resolve_case_dir(config, case_name: str) -> str:
     return case_dir
 
 
+def select_best_case(case_info: str, candidates: List[Dict], llm) -> int:
+    if len(candidates) == 1:
+        return 0
+
+    candidate_descriptions = []
+    for idx, candidate in enumerate(candidates, start=0):
+        candidate_descriptions.append(
+            "\n".join(
+                [
+                    f"Candidate {idx}:",
+                    f"case_name: {candidate.get('case_name')}",
+                    f"case_domain: {candidate.get('case_domain')}",
+                    f"case_category: {candidate.get('case_category')}",
+                    f"case_solver: {candidate.get('case_solver')}",
+                ]
+            )
+        )
+
+    selection_system_prompt = (
+        "You are selecting the most relevant OpenFOAM tutorial case for the user's requirement."
+        " Review the candidates and return the Candidate's index of the best match."
+        " Prefer candidates whose domain, solver, and domain align with the requirement."
+    )
+    selection_user_prompt = (
+        f"<user's requirement>User requirement summary:\n{case_info}\n </user's requirement>"
+        f"Candidates (from most similar to least similar by vector search):\n\n"
+        + "\n".join(candidate_descriptions)
+        + "\nRespond with the JSON schema: {\"selected_index\": <number>, \"reason\": \"...\"}"
+    )
+
+    try:
+        selection = llm.invoke(
+            selection_user_prompt,
+            selection_system_prompt,
+        )
+        selection = parse_json_content(selection)
+        selection = json.loads(selection)
+        selection = CaseIndexModel(**selection)
+        selected_idx = max(selection.selected_index, 0)
+        return selected_idx
+    except Exception as e:
+        print(f"LLM selection failed, defaulting to top candidate. Error: {e}")
+        return 0
+
 def retrieve_references(case_name: str, case_solver: str, case_domain: str, case_category: str, config, llm) -> Tuple[str, str, str, bool]:
     # Build case_info
     case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
+    #print(f"-------------case_info: \n{case_info}\n---------")
     faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=config.searchdocs)
-    faiss_structure = faiss_structure[0]['full_content']
+    # for data in faiss_structure:
+    #print(f"Retrieved candidate case structure:\n{data['index']}\n---")
+    #找到最相近的case下标
+    idx = select_best_case(case_info, faiss_structure, llm)
+    faiss_structure = faiss_structure[idx]["full_content"]
     faiss_structure = re.sub(r"\n{3}", '\n', faiss_structure)
-    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=config.searchdocs)
+    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=1)
     faiss_detailed = faiss_detailed[0]['full_content']
 
     file_dependency_flag = True
@@ -70,9 +122,10 @@ def retrieve_references(case_name: str, case_solver: str, case_domain: str, case
     dir_counts_str = ',\n'.join([f"There are {count} files in Directory: {directory}" for directory, count in dir_counts.items()])
 
     # Build allrun reference
-    index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
-    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=config.searchdocs)
+    #index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
+    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", faiss_structure, topk=2)
     allrun_reference = "Similar cases are ordered, with smaller numbers indicating greater similarity. For example, similar_case_1 is more similar than similar_case_2, and similar_case_2 is more similar than similar_case_3.\n"
+    
     for idx, item in enumerate(faiss_allrun):
         allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
 
@@ -81,7 +134,6 @@ def retrieve_references(case_name: str, case_solver: str, case_domain: str, case
 
 def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_str: str, llm) -> List[Dict]:
     decompose_system_prompt = (
-        "/no_think"
         "You are an experienced Planner specializing in OpenFOAM projects. "
         "Your task is to break down the following user requirement into a series of smaller, manageable subtasks. "
         "For each subtask, identify the file name of the OpenFOAM input file (foamfile) and the corresponding folder name where it should be stored. "
@@ -99,7 +151,6 @@ def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_
         "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
         "Please generate the output as structured JSON."
     )
-    #res = llm.invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanModel, is_thinking=False)
     res = llm.invoke(decompose_user_prompt, decompose_system_prompt)
     json_str = parse_json_content(res)
     res = json.loads(json_str)

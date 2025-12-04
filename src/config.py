@@ -7,7 +7,7 @@ class Config:
     max_loop: int = 15
     
     batchsize: int = 10 # 没用到
-    searchdocs: int = 2  #搜索到的相关文档数量
+    searchdocs: int = 10  #搜索到的相关文档数量
     run_times: int = 1  # current run number (for directory naming)
     database_path: str = Path(__file__).resolve().parent.parent / "database"
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
@@ -17,7 +17,7 @@ class Config:
     model_provider: str = "openai"# [openai, ollama, bedrock]
     # model_version should be in ["gpt-4o", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
     model_version: str = "deepseek-chat"
-    temperature: float = 0.8
+    temperature: float = 1.0
     thinking: bool = False
     
     
