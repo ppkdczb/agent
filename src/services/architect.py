@@ -112,23 +112,23 @@ def retrieve_references(case_name: str, case_solver: str, case_domain: str, case
     faiss_structure = re.sub(r"\n{3}", '\n', faiss_structure)
     faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=1)
     faiss_detailed = faiss_detailed[0]['full_content']
-
     file_dependency_flag = True
     if (faiss_detailed.count('\n') >= config.file_dependency_threshold):
         file_dependency_flag = False
-
     dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
+    case_name_match = re.search(r"case name:\s*(\S+)", faiss_detailed).group(1)
     dir_counts = parse_directory_structure(dir_structure)
     dir_counts_str = ',\n'.join([f"There are {count} files in Directory: {directory}" for directory, count in dir_counts.items()])
-
     # Build allrun reference
-    #index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
-    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", faiss_structure, topk=2)
+    #index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>")
+    idx_content = f"<index>\ncase name: {case_name_match}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
+    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", idx_content, topk=2)
+    #print(f"idx_content-------------\n{idx_content}\n------------------")
     allrun_reference = "Similar cases are ordered, with smaller numbers indicating greater similarity. For example, similar_case_1 is more similar than similar_case_2, and similar_case_2 is more similar than similar_case_3.\n"
-    
+    #faiss_allrun = [re.sub(r"<directory_structure>.*?</directory_structure>", "", item['full_content'], flags=re.DOTALL) for item in faiss_allrun]
     for idx, item in enumerate(faiss_allrun):
         allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
-
+    
     return faiss_detailed, dir_structure, dir_counts_str, allrun_reference, file_dependency_flag
 
 
@@ -148,7 +148,7 @@ def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_
         f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"
         "Make sure you generate all the necessary files for the user's requirements."
         "Do not include any gmsh files like .geo etc. in the subtasks."
-        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
+        "Only include blockMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
         "Please generate the output as structured JSON."
     )
     res = llm.invoke(decompose_user_prompt, decompose_system_prompt)
