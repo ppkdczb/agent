@@ -148,7 +148,7 @@ def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_
         f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"
         "Make sure you generate all the necessary files for the user's requirements."
         "Do not include any gmsh files like .geo etc. in the subtasks."
-        "Only include blockMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
+        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
         "Please generate the output as structured JSON."
     )
     res = llm.invoke(decompose_user_prompt, decompose_system_prompt)
