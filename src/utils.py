@@ -27,12 +27,12 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
 DATABASE_DIR = f"{Path(__file__).resolve().parent.parent}/database/faiss"
-#embedding_model = HuggingFaceEmbeddings(model_name="/home/ppkdczb/Foam_agent_path/Embedding_Models/qwen3-embedding-0.6b")
+embedding_model = HuggingFaceEmbeddings(model_name="/home/ppkdczb/Foam_agent_path/Embedding_Models/qwen3-embedding-0.6b")
 FAISS_DB_CACHE = {
-    "openfoam_allrun_scripts": FAISS.load_local(f"{DATABASE_DIR}/openfoam_allrun_scripts", HuggingFaceEmbeddings(model_name="/home/ppkdczb/Foam_agent_path/Embedding_Models/qwen3-embedding-0.6b"), allow_dangerous_deserialization=True),
-    "openfoam_tutorials_structure": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_structure", HuggingFaceEmbeddings(model_name="/home/ppkdczb/Foam_agent_path/Embedding_Models/qwen3-embedding-0.6b"), allow_dangerous_deserialization=True),
-    "openfoam_tutorials_details": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_details", HuggingFaceEmbeddings(model_name="/home/ppkdczb/Foam_agent_path/Embedding_Models/qwen3-embedding-0.6b"), allow_dangerous_deserialization=True),
-    "openfoam_command_help": FAISS.load_local(f"{DATABASE_DIR}/openfoam_command_help", HuggingFaceEmbeddings(model_name="/home/ppkdczb/Foam_agent_path/Embedding_Models/qwen3-embedding-0.6b"), allow_dangerous_deserialization=True)
+    "openfoam_allrun_scripts": FAISS.load_local(f"{DATABASE_DIR}/openfoam_allrun_scripts", embedding_model, allow_dangerous_deserialization=True),
+    "openfoam_tutorials_structure": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_structure", embedding_model, allow_dangerous_deserialization=True),
+    "openfoam_tutorials_details": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_details", embedding_model, allow_dangerous_deserialization=True),
+    "openfoam_command_help": FAISS.load_local(f"{DATABASE_DIR}/openfoam_command_help", embedding_model, allow_dangerous_deserialization=True)
 }
 
 # FAISS_DB_CACHE = {
